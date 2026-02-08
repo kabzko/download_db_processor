@@ -1,0 +1,370 @@
+# =============================================================================
+# ANSIBLE PLAYBOOK: DATABASE IMPORT AND SANITIZATION
+# =============================================================================
+# Purpose: Automated workflow to import, sanitize, and export database
+# Workflow:
+#   1. Install required Python packages
+#   2. Drop existing database (clean slate)
+#   3. Create fresh database
+#   4. Import SQL dump
+#   5. Create masking functions
+#   6. Apply PII sanitization
+#   7. Verify sanitization
+#   8. Export sanitized database
+#   9. Cleanup temporary files
+# Usage: ansible-playbook import_db.yml --extra-vars "database_name=your_db"
+# Requirements: PostgreSQL, Python, psycopg2-binary
+# Author: Database Team
+# Last Modified: 2025-02-08
+# =============================================================================
+
+---
+- hosts: localhost
+  gather_facts: false
+
+  # ---------------------------------------------------------------------------
+  # VARIABLES CONFIGURATION
+  # ---------------------------------------------------------------------------
+  # These variables control the import and sanitization process
+  # Override with --extra-vars on command line
+  # ---------------------------------------------------------------------------
+  vars:
+    # Name of the SQL dump file to import (without path)
+    # Expected format: database_name.sql or database_name
+    local_filename: '{{database_name}}'
+
+    # Directory where database files are stored
+    # Must have read/write permissions
+    local_folder: /Users/reuel/database/
+
+    # Name for the PostgreSQL database to create
+    # Will be dropped if exists, then recreated
+    local_db: '{{database_name}}'
+
+    # Path to the masking functions SQL script
+    # This script creates reusable functions like mask_email(), mask_phone()
+    create_functions_script: /Users/reuel/database/create_masking_function.sql
+
+    # Path to the PII masking script
+    # This script applies masking functions to actual data
+    mask_script_path: /Users/reuel/database/mask_pii_data.sql
+
+    # Path to the export script (bash)
+    # This script exports and compresses the sanitized database
+    export_script: /Users/reuel/database/export_db.sh
+
+    # Python interpreter to use for Ansible modules
+    # Should point to virtual environment with psycopg2 installed
+    ansible_python_interpreter: /Users/reuel/envs/ansible_env/bin/python3
+
+  # ---------------------------------------------------------------------------
+  # TASKS - SEQUENTIAL WORKFLOW
+  # ---------------------------------------------------------------------------
+  tasks:
+    # -------------------------------------------------------------------------
+    # TASK 1: ENSURE DEPENDENCIES ARE INSTALLED
+    # -------------------------------------------------------------------------
+    # psycopg2-binary is required for Ansible's PostgreSQL modules
+    # It provides Python interface to PostgreSQL database
+    # -------------------------------------------------------------------------
+    - name: Make sure psycopg2 is installed
+      pip:
+        name: psycopg2-binary
+        state: present
+      tags:
+        - setup
+        - dependencies
+
+    # -------------------------------------------------------------------------
+    # TASK 2: DROP EXISTING DATABASE
+    # -------------------------------------------------------------------------
+    # Purpose: Ensure clean slate for import
+    # Why: Prevents conflicts with existing data or schema differences
+    # Safe: Only drops database with exact name specified
+    # -------------------------------------------------------------------------
+    - name: Drop DB - "{{local_db}}"
+      postgresql_db:
+        name: '{{local_db}}'
+        state: absent # absent = drop if exists
+        login_host: localhost
+        login_port: 5432
+        login_user: postgres
+      tags:
+        - database
+        - cleanup
+
+    # -------------------------------------------------------------------------
+    # TASK 3: CREATE FRESH DATABASE
+    # -------------------------------------------------------------------------
+    # Purpose: Create empty database to receive import
+    # Default encoding: UTF8 (supports international characters)
+    # Default owner: postgres (can be changed if needed)
+    # -------------------------------------------------------------------------
+    - name: Create DB - "{{local_db}}"
+      postgresql_db:
+        name: '{{local_db}}'
+        state: present # present = create if not exists
+        login_host: localhost
+        login_port: 5432
+        login_user: postgres
+      tags:
+        - database
+        - setup
+
+    # -------------------------------------------------------------------------
+    # TASK 4: IMPORT SQL DUMP FILE
+    # -------------------------------------------------------------------------
+    # Purpose: Restore database from SQL dump file
+    # Process:
+    #   1. Read SQL file line by line
+    #   2. Execute each SQL statement
+    #   3. Restore schema (tables, indexes, constraints)
+    #   4. Restore data (INSERT statements)
+    # Error handling: Fails if return code != 0
+    # -------------------------------------------------------------------------
+    - name: Importing DB "{{local_db}}"
+      shell: psql -U postgres {{local_db}} < {{local_folder}}{{local_filename}}
+      register: import_result # Capture output for debugging
+      failed_when: import_result.rc != 0 # Fail task if psql returns error
+      tags:
+        - import
+        - database
+
+    # -------------------------------------------------------------------------
+    # TASK 5: VERIFY MASKING FUNCTIONS SCRIPT EXISTS
+    # -------------------------------------------------------------------------
+    # Purpose: Prevent script errors by checking file exists first
+    # Safety: Fails early if required script is missing
+    # -------------------------------------------------------------------------
+    - name: Check if create functions script exists
+      stat:
+        path: '{{create_functions_script}}'
+      register: create_functions_stat
+      tags:
+        - validation
+        - sanitization
+
+    - name: Fail if create functions script doesn't exist
+      fail:
+        msg: 'Create functions script not found at {{create_functions_script}}'
+      when: not create_functions_stat.stat.exists
+      tags:
+        - validation
+        - sanitization
+
+    # -------------------------------------------------------------------------
+    # TASK 6: CREATE MASKING FUNCTIONS
+    # -------------------------------------------------------------------------
+    # Purpose: Install reusable PII masking functions into database
+    # Functions created:
+    #   - mask_email(text) - Anonymize email addresses
+    #   - mask_phone(text) - Randomize phone numbers
+    #   - mask_first_name(text) - Hash first names
+    #   - mask_middle_name(text) - Hash middle names
+    #   - mask_last_name(text) - Hash last names
+    #   - mask_credit_card(text) - Mask credit card numbers
+    # Error handling: ON_ERROR_STOP=1 stops on first SQL error
+    # -------------------------------------------------------------------------
+    - name: Create masking functions
+      shell: psql -U postgres -d {{local_db}} -f {{create_functions_script}} -v ON_ERROR_STOP=1
+      register: create_functions_result
+      failed_when: create_functions_result.rc != 0
+      tags:
+        - sanitization
+        - functions
+
+    - name: Display create functions output
+      debug:
+        var: create_functions_result.stdout_lines
+      when: create_functions_result.stdout_lines is defined
+      tags:
+        - sanitization
+        - debug
+
+    # -------------------------------------------------------------------------
+    # TASK 7: VERIFY SANITIZATION SCRIPT EXISTS
+    # -------------------------------------------------------------------------
+    # Purpose: Ensure masking script is present before attempting to run
+    # Critical: Without this script, data remains unsanitized
+    # -------------------------------------------------------------------------
+    - name: Check if sanitization script exists
+      stat:
+        path: '{{mask_script_path}}'
+      register: script_stat
+      tags:
+        - validation
+        - sanitization
+
+    - name: Fail if sanitization script doesn't exist
+      fail:
+        msg: 'Sanitization script not found at {{mask_script_path}}'
+      when: not script_stat.stat.exists
+      tags:
+        - validation
+        - sanitization
+
+    # -------------------------------------------------------------------------
+    # TASK 8: RUN PII SANITIZATION
+    # -------------------------------------------------------------------------
+    # Purpose: Apply masking functions to actual data in tables
+    # Tables affected:
+    #   - employee (all records)
+    #   - users (where employee_id exists or is_employee = true)
+    # Process runs in transaction: all changes or none (atomic)
+    # ON_ERROR_STOP=1: Rollback entire transaction if any error occurs
+    # -------------------------------------------------------------------------
+    - name: Run sanitization script
+      shell: psql -U postgres -d {{local_db}} -f {{mask_script_path}} -v ON_ERROR_STOP=1
+      register: sanitization_result
+      failed_when: sanitization_result.rc != 0
+      tags:
+        - sanitization
+        - masking
+
+    # -------------------------------------------------------------------------
+    # TASK 9: DISPLAY SANITIZATION OUTPUT
+    # -------------------------------------------------------------------------
+    # Purpose: Show what was masked for audit trail
+    # Output includes:
+    #   - Number of records masked in each table
+    #   - Sample masked data
+    #   - Verification counts
+    # -------------------------------------------------------------------------
+    - name: Display sanitization output
+      debug:
+        var: sanitization_result.stdout_lines
+      when: sanitization_result.stdout_lines is defined
+      tags:
+        - sanitization
+        - debug
+
+    # -------------------------------------------------------------------------
+    # TASK 10: VERIFY SANITIZATION COMPLETED SUCCESSFULLY
+    # -------------------------------------------------------------------------
+    # Purpose: Confirm that email masking was applied
+    # Method: Count records with @example.com domain
+    # Expected: Should match total employee + employee-user records
+    # Critical: If count is 0, sanitization may have failed
+    # -------------------------------------------------------------------------
+    - name: Verify sanitization completed
+      postgresql_query:
+        db: '{{local_db}}'
+        login_host: localhost
+        login_port: 5432
+        login_user: postgres
+        # Count users with masked emails (contains @example.com)
+        query: "SELECT COUNT(*) as masked_count FROM users WHERE email LIKE '%@example.com'"
+      register: verification
+      tags:
+        - verification
+        - sanitization
+
+    # -------------------------------------------------------------------------
+    # TASK 11: SHOW VERIFICATION RESULTS
+    # -------------------------------------------------------------------------
+    # Purpose: Display count of successfully masked records
+    # Use this to verify expected number of records were sanitized
+    # -------------------------------------------------------------------------
+    - name: Show verification results
+      debug:
+        msg: 'Masked user records: {{ verification.query_result[0].masked_count }}'
+      tags:
+        - verification
+        - debug
+
+    # -------------------------------------------------------------------------
+    # TASK 12: CLEANUP - REMOVE ORIGINAL DATABASE FILE
+    # -------------------------------------------------------------------------
+    # Purpose: Save disk space by removing uncompressed SQL dump
+    # Safe: We have the data in PostgreSQL now
+    # Note: Original .gz file was already removed by download_db.sh
+    # -------------------------------------------------------------------------
+    - name: Removing original DB file - "{{local_db}}"
+      file:
+        path: '{{local_folder}}{{local_filename}}'
+        state: absent # absent = delete if exists
+      tags:
+        - cleanup
+
+    # -------------------------------------------------------------------------
+    # TASK 13: VERIFY EXPORT SCRIPT EXISTS
+    # -------------------------------------------------------------------------
+    # Purpose: Ensure export script is available before attempting export
+    # Export script: Dumps database and compresses with timestamp
+    # -------------------------------------------------------------------------
+    - name: Check if export script exists
+      stat:
+        path: '{{export_script}}'
+      register: export_script_stat
+      tags:
+        - validation
+        - export
+
+    - name: Fail if export script doesn't exist
+      fail:
+        msg: 'Export script not found at {{export_script}}'
+      when: not export_script_stat.stat.exists
+      tags:
+        - validation
+        - export
+
+    # -------------------------------------------------------------------------
+    # TASK 14: EXPORT SANITIZED DATABASE
+    # -------------------------------------------------------------------------
+    # Purpose: Create compressed backup of sanitized database
+    # Process:
+    #   1. pg_dump exports database to SQL file
+    #   2. gzip compresses the file
+    #   3. Adds timestamp to filename
+    #   4. Generates MD5/SHA256 checksums
+    #   5. Creates metadata file
+    # Output: database_name_sanitized_YYYYMMDD_HHMMSS.sql.gz
+    # -------------------------------------------------------------------------
+    - name: Export and zip sanitized database
+      shell: bash {{export_script}} {{local_db}} {{local_folder}}
+      register: export_result
+      failed_when: export_result.rc != 0
+      tags:
+        - export
+        - backup
+
+    # -------------------------------------------------------------------------
+    # TASK 15: DISPLAY EXPORT OUTPUT
+    # -------------------------------------------------------------------------
+    # Purpose: Show export summary including:
+    #   - Output filename
+    #   - File size
+    #   - Duration
+    #   - Checksum
+    # -------------------------------------------------------------------------
+    - name: Display export output
+      debug:
+        var: export_result.stdout_lines
+      tags:
+        - export
+        - debug
+
+    # -------------------------------------------------------------------------
+    # TASK 16: LOCATE AND DISPLAY EXPORTED FILE
+    # -------------------------------------------------------------------------
+    # Purpose: Find the newly created sanitized database file
+    # Pattern matches: database_sanitized_*.sql.gz
+    # Shows full path so user can locate file for distribution
+    # -------------------------------------------------------------------------
+    - name: Get exported file info
+      find:
+        paths: '{{local_folder}}'
+        patterns: '{{local_db}}_sanitized_*.sql.gz'
+      register: exported_files
+      tags:
+        - export
+        - verification
+
+    - name: Show exported file location
+      debug:
+        msg: 'Sanitized database exported to: {{ item.path }}'
+      loop: '{{ exported_files.files }}'
+      when: exported_files.files | length > 0
+      tags:
+        - export
+        - verification
