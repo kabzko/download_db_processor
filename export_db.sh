@@ -10,6 +10,7 @@ set -u
 DB_HOST=${DB_HOST:-localhost}
 DB_PORT=${DB_PORT:-5432}
 DB_USER=${DB_USER:-postgres}
+DB_PASSWORD=${DB_PASSWORD:-}       # PostgreSQL password (set via env: export DB_PASSWORD=yourpassword)
 COMPRESSION=${COMPRESSION:-gzip}  # gzip, bzip2, or none
 KEEP_SQL=${KEEP_SQL:-false}        # Keep uncompressed SQL file
 FORMAT=${FORMAT:-plain}            # plain or custom
@@ -66,12 +67,12 @@ START_TIME=$(date +%s)
 
 if [ "$FORMAT" = "custom" ]; then
     # Custom format (already compressed)
-    pg_dump -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" \
+    PGPASSWORD="$DB_PASSWORD" pg_dump -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" \
             -d "$DB_NAME" -Fc -f "$BASE_FILE"
     FINAL_FILE="$BASE_FILE"
 else
     # Plain SQL format
-    pg_dump -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" \
+    PGPASSWORD="$DB_PASSWORD" pg_dump -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" \
             -d "$DB_NAME" -Fp -f "$BASE_FILE"
     
     # Compress if requested
@@ -140,7 +141,7 @@ Format: $FORMAT
 Host: $DB_HOST:$DB_PORT
 Exported By: $USER
 Hostname: $(hostname)
-PostgreSQL Version: $(psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -t -c "SELECT version();" | head -1)
+PostgreSQL Version: $(PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -t -c "SELECT version();" | head -1)
 EOF
 
 # Final summary

@@ -160,6 +160,36 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
+-- -----------------------------------------------------------------------------
+-- Function: mask_random_number
+-- -----------------------------------------------------------------------------
+-- Purpose: Generates a random 9-digit number and returns it as a string
+-- Input: None (no parameters required)
+-- Output: TEXT - A random 9-digit number as string e.g. '482031947'
+-- Example: SELECT mask_random_number(); -> '739401823'
+-- Properties: VOLATILE - Different random output on every call
+-- Use Case: Masking employee IDs, reference numbers, national IDs,
+--           or any numeric identifier that must remain 9 digits
+-- Note: Always returns exactly 9 digits (padded with leading zeros if needed)
+--       Range: 100000000 to 999999999 (guarantees 9 digits, no leading zero)
+-- -----------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION mask_random_number()
+RETURNS TEXT AS $$
+DECLARE
+    -- Generate random number between 100000000 and 999999999
+    -- This guarantees exactly 9 digits with no leading zeros
+    random_num BIGINT;
+BEGIN
+    -- floor(random() * (max - min + 1)) + min gives a number in range [min, max]
+    -- 100000000 = smallest 9-digit number (no leading zeros)
+    -- 999999999 = largest 9-digit number
+    random_num := floor(random() * (999999999 - 100000000 + 1) + 100000000)::BIGINT;
+    
+    -- Cast to TEXT to return as string
+    RETURN random_num::TEXT;
+END;
+$$ LANGUAGE plpgsql VOLATILE;
+
 -- =============================================================================
 -- USAGE INSTRUCTIONS
 -- =============================================================================
@@ -174,6 +204,7 @@ $$ LANGUAGE plpgsql IMMUTABLE;
 --    SELECT mask_email('test@example.com');
 --    SELECT mask_phone('555-123-4567');
 --    SELECT mask_first_name('John');
+--    SELECT mask_random_number();
 --
 -- 4. Then run mask_pii_data.sql to apply masking to actual tables
 --

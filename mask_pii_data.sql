@@ -40,7 +40,21 @@ SELECT
     contact as original_contact,
     firstname as original_firstname,
     middlename as original_middlename,
-    lastname as original_lastname
+    sss as original_sss,
+    phic as original_phic,
+    hdmf as original_hdmf,
+    local_address as original_local_address,
+    local_zip_code as original_local_zip_code,
+    rfid as original_rfid,
+    birthplace as original_birthplace,
+    dependents as original_dependents,
+    fathersname as original_fathersname,
+    contactperson as original_contactperson,
+    contactnumber as original_contactnumber,
+    contactaddress as original_contactaddress,
+    resignationdate as original_resignationdate,
+    fingerprint as original_fingerprint,
+    birthdate as original_birthdate
 FROM employee 
 LIMIT 1;
 
@@ -51,8 +65,22 @@ SET
     email = mask_email(email),          -- Convert to user<hash>@example.com
     contact = mask_phone(contact),      -- Convert to 555-XXXX-XXXX
     firstname = mask_first_name(firstname),   -- Convert to User_<hash>
-    middlename = mask_middle_name(middlename), -- Convert to User_<hash>
-    lastname = mask_last_name(lastname);       -- Convert to User_<hash>
+    middlename = mask_middle_name(middlename), -- Convert to User_<hash>                      -- Remove RFID data completely
+    sss = mask_random_number(), -- Replace SSS with random 9-digit number
+    phic = mask_random_number(), -- Replace PhilHealth with random 9-digit number
+    hdmf = mask_random_number(), -- Replace Pag-IBIG with random 9-digit number
+    local_address = NULL,                    -- Remove local address completely
+    local_zip_code = NULL,                    -- Remove local zip code completely
+    rfid = NULL,  
+    birthplace = NULL,                    -- Remove birthplace completely
+    dependents = NULL,                    -- Remove dependents completely
+    fathersname = NULL,                    -- Remove father's name completely
+    contactperson = NULL,                    -- Remove contact person completely
+    contactnumber = NULL,                    -- Remove contact number completely
+    contactaddress = NULL,                    -- Remove contact address completely
+    resignationdate = NULL,                    -- Remove resignation date completely
+    fingerprint = NULL,                    -- Remove fingerprint data completely
+    birthdate = NULL;                    -- Remove birthdate completely
 
 -- Verify masking was applied
 DO $$
@@ -73,7 +101,21 @@ SELECT
     contact as masked_contact,
     firstname as masked_firstname,
     middlename as masked_middlename,
-    lastname as masked_lastname
+    sss as masked_sss,
+    phic as masked_phic,
+    hdmf as masked_hdmf,
+    local_address as masked_local_address,
+    local_zip_code as masked_local_zip_code,
+    rfid as masked_rfid,
+    birthplace as masked_birthplace,
+    dependents as masked_dependents,
+    fathersname as masked_fathersname,
+    contactperson as masked_contactperson,
+    contactnumber as masked_contactnumber,
+    contactaddress as masked_contactaddress,
+    resignationdate as masked_resignationdate,
+    fingerprint as masked_fingerprint,
+    birthdate as masked_birthdate
 FROM employee 
 LIMIT 1;
 

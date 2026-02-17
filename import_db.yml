@@ -35,7 +35,7 @@
 
     # Directory where database files are stored
     # Must have read/write permissions
-    local_folder: /Users/reuel/database/
+    local_folder: /home/ubuntu/database/
 
     # Name for the PostgreSQL database to create
     # Will be dropped if exists, then recreated
@@ -43,19 +43,28 @@
 
     # Path to the masking functions SQL script
     # This script creates reusable functions like mask_email(), mask_phone()
-    create_functions_script: /Users/reuel/database/create_masking_function.sql
+    create_functions_script: /home/ubuntu/database/download_db_processor/create_masking_function.sql
 
     # Path to the PII masking script
     # This script applies masking functions to actual data
-    mask_script_path: /Users/reuel/database/mask_pii_data.sql
+    mask_script_path: /home/ubuntu/database/download_db_processor/mask_pii_data.sql
 
     # Path to the export script (bash)
     # This script exports and compresses the sanitized database
-    export_script: /Users/reuel/database/export_db.sh
+    export_script: /home/ubuntu/database/download_db_processor/export_db.sh
+
+    # Path to the S3 upload script (bash)
+    # This script uploads exported files to S3 and cleans up local files
+    upload_script: /home/ubuntu/database/download_db_processor/upload_and_cleanup.sh
+
+    # PostgreSQL password passed as environment variable to export script
+    # Pass via command line: ansible-playbook import_db.yml -e "database_name=mydb db_password=mypassword"
+    # Or set in vault for security: ansible-vault encrypt_string 'mypassword' --name 'db_password'
+    db_password: "{{ db_password }}"
 
     # Python interpreter to use for Ansible modules
     # Should point to virtual environment with psycopg2 installed
-    ansible_python_interpreter: /Users/reuel/envs/ansible_env/bin/python3
+    ansible_python_interpreter: /home/ubuntu/envs/ansible_env/bin/python3
 
   # ---------------------------------------------------------------------------
   # TASKS - SEQUENTIAL WORKFLOW
@@ -83,12 +92,10 @@
     # Safe: Only drops database with exact name specified
     # -------------------------------------------------------------------------
     - name: Drop DB - "{{local_db}}"
+      become_user: postgres
       postgresql_db:
         name: '{{local_db}}'
-        state: absent # absent = drop if exists
-        login_host: localhost
-        login_port: 5432
-        login_user: postgres
+        state: absent
       tags:
         - database
         - cleanup
@@ -101,12 +108,9 @@
     # Default owner: postgres (can be changed if needed)
     # -------------------------------------------------------------------------
     - name: Create DB - "{{local_db}}"
+      become_user: postgres
       postgresql_db:
         name: '{{local_db}}'
-        state: present # present = create if not exists
-        login_host: localhost
-        login_port: 5432
-        login_user: postgres
       tags:
         - database
         - setup
@@ -247,11 +251,9 @@
     # Critical: If count is 0, sanitization may have failed
     # -------------------------------------------------------------------------
     - name: Verify sanitization completed
+      become_user: postgres
       postgresql_query:
         db: '{{local_db}}'
-        login_host: localhost
-        login_port: 5432
-        login_user: postgres
         # Count users with masked emails (contains @example.com)
         query: "SELECT COUNT(*) as masked_count FROM users WHERE email LIKE '%@example.com'"
       register: verification
@@ -319,9 +321,13 @@
     #   4. Generates MD5/SHA256 checksums
     #   5. Creates metadata file
     # Output: database_name_sanitized_YYYYMMDD_HHMMSS.sql.gz
+    # DB_PASSWORD: Passed as environment variable to export_db.sh
+    #              export_db.sh uses PGPASSWORD=$DB_PASSWORD for pg_dump
     # -------------------------------------------------------------------------
     - name: Export and zip sanitized database
       shell: bash {{export_script}} {{local_db}} {{local_folder}}
+      environment:
+        DB_PASSWORD: "{{ db_password }}"  # Passed to export_db.sh as env variable
       register: export_result
       failed_when: export_result.rc != 0
       tags:
@@ -368,3 +374,64 @@
       tags:
         - export
         - verification
+
+    # -------------------------------------------------------------------------
+    # TASK 17: VERIFY UPLOAD SCRIPT EXISTS
+    # -------------------------------------------------------------------------
+    # Purpose: Ensure upload script is available before attempting S3 upload
+    # -------------------------------------------------------------------------
+    - name: Check if upload script exists
+      stat:
+        path: '{{upload_script}}'
+      register: upload_script_stat
+      tags:
+        - validation
+        - upload
+
+    - name: Fail if upload script doesn't exist
+      fail:
+        msg: 'Upload script not found at {{upload_script}}'
+      when: not upload_script_stat.stat.exists
+      tags:
+        - validation
+        - upload
+
+    # -------------------------------------------------------------------------
+    # TASK 18: UPLOAD SANITIZED DATABASE TO S3
+    # -------------------------------------------------------------------------
+    # Purpose: Upload exported files to S3 and clean up local files
+    # Process:
+    #   1. Verifies AWS CLI and credentials
+    #   2. Uploads .sql.gz, .md5, .sha256, .info files to S3
+    #   3. Verifies upload was successful
+    #   4. Removes all local exported files
+    #   5. Drops the local database
+    # DB_PASSWORD: Passed as env variable for dropping the database
+    # -------------------------------------------------------------------------
+    - name: Upload sanitized database to S3 and cleanup
+      shell: bash {{upload_script}} {{local_db}} {{local_folder}}
+      environment:
+        DB_PASSWORD: "{{ db_password }}"          # Used by upload_and_cleanup.sh to drop local DB
+        HOME: /home/ubuntu                         # Ensure correct home directory is used
+        AWS_SHARED_CREDENTIALS_FILE: /home/ubuntu/.aws/credentials  # Explicit AWS credentials path
+        AWS_CONFIG_FILE: /home/ubuntu/.aws/config  # Explicit AWS config path
+      register: upload_result
+      failed_when: upload_result.rc != 0
+      tags:
+        - upload
+        - cleanup
+
+    # -------------------------------------------------------------------------
+    # TASK 19: DISPLAY UPLOAD OUTPUT
+    # -------------------------------------------------------------------------
+    # Purpose: Show upload summary including:
+    #   - Files uploaded to S3
+    #   - Local files removed
+    #   - Database dropped
+    # -------------------------------------------------------------------------
+    - name: Display upload output
+      debug:
+        var: upload_result.stdout_lines
+      tags:
+        - upload
+        - debug

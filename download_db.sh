@@ -21,7 +21,7 @@
 
 # Local directory where database files will be stored
 # Make sure this directory exists and has sufficient space
-DATABASE_DIR=/Users/reuel/database/
+DATABASE_DIR=/home/ubuntu/database/
 
 # Database name to use when importing to PostgreSQL
 # This will be the name of the local database created
@@ -149,7 +149,7 @@ echo ""
 # 2. Use Ansible vault for password management
 # 3. Use SSH key authentication
 # 4. Run script as user with appropriate permissions
-echo "031498" | sudo -S ansible-playbook ~/database/scripts/importdb.yml --extra-vars "database_name=$LOCAL_DB_NAME"
+echo "123" | sudo -S ansible-playbook ~/database/download_db_processor/import_db.yml --extra-vars "database_name=$LOCAL_DB_NAME db_password=123"
 
 # -----------------------------------------------------------------------------
 # STEP 6: PROCESS COMPLETE
