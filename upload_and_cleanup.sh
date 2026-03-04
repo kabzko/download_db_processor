@@ -5,8 +5,8 @@
 # =============================================================================
 # Purpose: Upload exported sanitized database files to S3 bucket,
 #          clean up all local exported files, and drop the local database
-# Usage: ./upload_s3.sh <database_name> <local_folder>
-# Example: ./upload_s3.sh yp /Users/reuel/database/
+# Usage: ./upload_and_cleanup.sh <database_name> <local_folder>
+# Example: ./upload_and_cleanup.sh <database_name> <local_folder>
 # Requirements:
 #   - AWS CLI installed and configured with appropriate credentials
 #   - PostgreSQL installed (for dropdb command)
@@ -37,7 +37,7 @@ log_step()    { echo -e "${BLUE}[STEP]${NC} $1"; }
 # -----------------------------------------------------------------------------
 if [ $# -lt 2 ]; then
     log_error "Usage: $0 <database_name> <local_folder>"
-    log_error "Example: $0 yp /Users/reuel/database/"
+    log_error "Example: $0 <database_name> /Users/reuel/database/"
     exit 1
 fi
 
@@ -48,7 +48,7 @@ DB_NAME=$1
 LOCAL_FOLDER=$2
 
 # S3 bucket destination URI
-S3_BUCKET="s3://ysc-backup-databases/sanitized-yp/"
+S3_BUCKET="s3://ysc-backup-databases/sanitized-${DB_NAME}/"
 
 # PostgreSQL connection details
 DB_HOST=${DB_HOST:-localhost}

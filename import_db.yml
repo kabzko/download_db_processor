@@ -47,7 +47,7 @@
 
     # Path to the PII masking script
     # This script applies masking functions to actual data
-    mask_script_path: /home/ubuntu/database/download_db_processor/mask_pii_data.sql
+    mask_script_path: /home/ubuntu/database/download_db_processor/mask_pii_data_{{database_name}}.sql
 
     # Path to the export script (bash)
     # This script exports and compresses the sanitized database
@@ -232,7 +232,6 @@
     # Output includes:
     #   - Number of records masked in each table
     #   - Sample masked data
-    #   - Verification counts
     # -------------------------------------------------------------------------
     - name: Display sanitization output
       debug:
@@ -243,39 +242,7 @@
         - debug
 
     # -------------------------------------------------------------------------
-    # TASK 10: VERIFY SANITIZATION COMPLETED SUCCESSFULLY
-    # -------------------------------------------------------------------------
-    # Purpose: Confirm that email masking was applied
-    # Method: Count records with @example.com domain
-    # Expected: Should match total employee + employee-user records
-    # Critical: If count is 0, sanitization may have failed
-    # -------------------------------------------------------------------------
-    - name: Verify sanitization completed
-      become_user: postgres
-      postgresql_query:
-        db: '{{local_db}}'
-        # Count users with masked emails (contains @example.com)
-        query: "SELECT COUNT(*) as masked_count FROM users WHERE email LIKE '%@example.com'"
-      register: verification
-      tags:
-        - verification
-        - sanitization
-
-    # -------------------------------------------------------------------------
-    # TASK 11: SHOW VERIFICATION RESULTS
-    # -------------------------------------------------------------------------
-    # Purpose: Display count of successfully masked records
-    # Use this to verify expected number of records were sanitized
-    # -------------------------------------------------------------------------
-    - name: Show verification results
-      debug:
-        msg: 'Masked user records: {{ verification.query_result[0].masked_count }}'
-      tags:
-        - verification
-        - debug
-
-    # -------------------------------------------------------------------------
-    # TASK 12: CLEANUP - REMOVE ORIGINAL DATABASE FILE
+    # TASK 10: CLEANUP - REMOVE ORIGINAL DATABASE FILE
     # -------------------------------------------------------------------------
     # Purpose: Save disk space by removing uncompressed SQL dump
     # Safe: We have the data in PostgreSQL now
@@ -289,7 +256,7 @@
         - cleanup
 
     # -------------------------------------------------------------------------
-    # TASK 13: VERIFY EXPORT SCRIPT EXISTS
+    # TASK 11: VERIFY EXPORT SCRIPT EXISTS
     # -------------------------------------------------------------------------
     # Purpose: Ensure export script is available before attempting export
     # Export script: Dumps database and compresses with timestamp
@@ -311,7 +278,7 @@
         - export
 
     # -------------------------------------------------------------------------
-    # TASK 14: EXPORT SANITIZED DATABASE
+    # TASK 12: EXPORT SANITIZED DATABASE
     # -------------------------------------------------------------------------
     # Purpose: Create compressed backup of sanitized database
     # Process:
@@ -335,7 +302,7 @@
         - backup
 
     # -------------------------------------------------------------------------
-    # TASK 15: DISPLAY EXPORT OUTPUT
+    # TASK 13: DISPLAY EXPORT OUTPUT
     # -------------------------------------------------------------------------
     # Purpose: Show export summary including:
     #   - Output filename
@@ -351,7 +318,7 @@
         - debug
 
     # -------------------------------------------------------------------------
-    # TASK 16: LOCATE AND DISPLAY EXPORTED FILE
+    # TASK 14: LOCATE AND DISPLAY EXPORTED FILE
     # -------------------------------------------------------------------------
     # Purpose: Find the newly created sanitized database file
     # Pattern matches: database_sanitized_*.sql.gz
@@ -364,7 +331,6 @@
       register: exported_files
       tags:
         - export
-        - verification
 
     - name: Show exported file location
       debug:
@@ -373,10 +339,9 @@
       when: exported_files.files | length > 0
       tags:
         - export
-        - verification
 
     # -------------------------------------------------------------------------
-    # TASK 17: VERIFY UPLOAD SCRIPT EXISTS
+    # TASK 15: VERIFY UPLOAD SCRIPT EXISTS
     # -------------------------------------------------------------------------
     # Purpose: Ensure upload script is available before attempting S3 upload
     # -------------------------------------------------------------------------
@@ -397,7 +362,7 @@
         - upload
 
     # -------------------------------------------------------------------------
-    # TASK 18: UPLOAD SANITIZED DATABASE TO S3
+    # TASK 16: UPLOAD SANITIZED DATABASE TO S3
     # -------------------------------------------------------------------------
     # Purpose: Upload exported files to S3 and clean up local files
     # Process:
@@ -422,7 +387,7 @@
         - cleanup
 
     # -------------------------------------------------------------------------
-    # TASK 19: DISPLAY UPLOAD OUTPUT
+    # TASK 17: DISPLAY UPLOAD OUTPUT
     # -------------------------------------------------------------------------
     # Purpose: Show upload summary including:
     #   - Files uploaded to S3

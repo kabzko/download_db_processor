@@ -25,7 +25,7 @@ DATABASE_DIR=/home/ubuntu/database/
 
 # Database name to use when importing to PostgreSQL
 # This will be the name of the local database created
-LOCAL_DB_NAME=yp
+LOCAL_DB_NAME=$1
 
 # S3 bucket path where database backups are stored
 # Format: bucket-name/folder-name
