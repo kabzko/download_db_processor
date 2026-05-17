@@ -101,5 +101,97 @@ BEGIN
     RAISE NOTICE '✓ User records masked: %', masked_count;
 END $$;
 
+-- =============================================================================
+-- SECTION 3: MASK User Company TABLE
+-- =============================================================================
+-- Purpose: Anonymize user records marked
+-- Tables affected: User_company
+-- Business logic: These may be:
+--   - Data inconsistency cases that need cleanup
+-- =============================================================================
+
+DO $$
+BEGIN
+    RAISE NOTICE '';
+    RAISE NOTICE '========================================';
+    RAISE NOTICE 'MASKING User Company';
+    RAISE NOTICE '========================================';
+    RAISE NOTICE 'User Company %', (
+        SELECT COUNT(*) FROM public."User_company"
+    );
+END $$;
+
+UPDATE public."User_company"
+SET 
+    email = mask_email(email),              -- Anonymize email address
+    name = mask_first_name(name),    -- Anonymize full name
+    logo = NULL, -- Remove logo completely
+    logo_thumbnail = NULL, -- Remove logo thumbnail completely
+    bir_number = NULL, -- Remove BIR Number data completely
+    complete_address = NULL, -- Remove complete address data completely
+    contact_person = NULL, -- Remove contact person data completely
+    telephone = NULL, -- Remove telephone data completely
+    tin = mask_random_number(), -- Replace TIN with random 9-digit number
+    vat_number = NULL, -- Remove VAT number completely
+    code = mask_first_name(code), -- Remove code completely
+    authorized_representative_name = NULL, -- Remove authorized representative name completely
+    authorized_representative_position = NULL, -- Remove authorized representative position completely
+    authorized_representative_tin = NULL, -- Remove authorized representative TIN completely
+    authorized_representative_phone = NULL; -- Remove authorized representative contact number completely
+
+-- Verify masking for this segment
+DO $$
+DECLARE
+    masked_count INTEGER;
+BEGIN
+    SELECT COUNT(*) INTO masked_count 
+    FROM public."User_company" 
+    WHERE email LIKE '%@example.com';
+    
+    RAISE NOTICE '✓ User Company records masked: %', masked_count;
+END $$;
+
+-- =============================================================================
+-- SECTION 4: MASK Supplier TABLE
+-- =============================================================================
+-- Purpose: Anonymize supplier records marked
+-- Tables affected: Supplier
+-- Business logic: These may be:
+--   - Data inconsistency cases that need cleanup
+-- =============================================================================
+
+DO $$
+BEGIN
+    RAISE NOTICE '';
+    RAISE NOTICE '========================================';
+    RAISE NOTICE 'MASKING Supplier';
+    RAISE NOTICE '========================================';
+    RAISE NOTICE 'Supplier %', (
+        SELECT COUNT(*) FROM public."supplier"
+    );
+END $$;
+
+UPDATE public."supplier"
+SET 
+    email = mask_email(email),              -- Anonymize email address
+    name = mask_first_name(name),    -- Anonymize full name
+    code = mask_first_name(code), -- Remove code completely
+    tin = mask_random_number(), -- Replace TIN with random 9-digit number
+    address = NULL, -- Remove address completely
+    contact_person = NULL, -- Remove contact person data completely
+    payee = mask_first_name(payee); -- Remove payee completely
+
+-- Verify masking for this segment
+DO $$
+DECLARE
+    masked_count INTEGER;
+BEGIN
+    SELECT COUNT(*) INTO masked_count 
+    FROM public."supplier" 
+    WHERE email LIKE '%@example.com';
+    
+    RAISE NOTICE '✓ Supplier records masked: %', masked_count;
+END $$;
+
 -- Automatically commit (comment this out for manual control)
 COMMIT;
