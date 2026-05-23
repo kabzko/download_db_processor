@@ -57,32 +57,26 @@ BEGIN
 END $$;
 
 -- =============================================================================
--- SECTION 2: MASK User TABLE - NON-YAHSHUAN
+-- SECTION 2: MASK User TABLE
 -- =============================================================================
--- Purpose: Anonymize user records marked as non-yahshuan (is_yahshuan=FALSE)
+-- Purpose: Anonymize user records
 -- Tables affected: User
--- Conditions: 
---   - is_yahshuan = FALSE (flagged as non-yahshuan in system)
--- Business logic: These may be:
---   - Data inconsistency cases that need cleanup
 -- =============================================================================
 
 DO $$
 BEGIN
     RAISE NOTICE '';
     RAISE NOTICE '========================================';
-    RAISE NOTICE 'MASKING User - NON-YAHSHUAN';
+    RAISE NOTICE 'MASKING User';
     RAISE NOTICE '========================================';
-    RAISE NOTICE 'User with is_yahshuan=FALSE: %', (
-        SELECT COUNT(*) FROM public."User" 
-        WHERE is_yahshuan = FALSE
+    RAISE NOTICE 'Total User records: %', (
+        SELECT COUNT(*) FROM public."User"
     );
 END $$;
 
 UPDATE public."User"
 SET 
-    fullname = mask_full_name(fullname)    -- Anonymize full name
-WHERE is_yahshuan = FALSE;                   -- Mask User not marked as yahshuan
+    fullname = mask_full_name(fullname);    -- Anonymize full name
 
 -- Verify masking for this segment
 DO $$
@@ -91,8 +85,7 @@ DECLARE
 BEGIN
     SELECT COUNT(*) INTO masked_count 
     FROM public."User" 
-    WHERE email LIKE '%@example.com' 
-      AND is_yahshuan = FALSE;
+    WHERE email LIKE '%@example.com';
     
     RAISE NOTICE '✓ User records masked: %', masked_count;
 END $$;
@@ -122,7 +115,7 @@ SET
     name = mask_company(name),    -- Anonymize name
     complete_address = NULL, -- Remove complete address data completely
     contact_person = NULL, -- Remove contact person data completely
-    tin = mask_random_number(), -- Replace TIN with random 9-digit number
+    tin = mask_random_number(); -- Replace TIN with random 9-digit number
 
 -- Verify masking for this segment
 DO $$
@@ -164,7 +157,14 @@ SET
     tin = mask_random_number(), -- Replace TIN with random 9-digit number
     address = NULL, -- Remove address completely
     contact_person = NULL, -- Remove contact person data completely
-    payee = mask_full_name(payee); -- Anonymize payee name
+    payee = mask_full_name(payee), -- Anonymize payee name
+    website = NULL, -- Remove website completely
+    bank_no = NULL, -- Remove bank number completely
+    mobile = NULL, -- Remove mobile number completely
+    landline = NULL, -- Remove landline number completely
+    fax = NULL, -- Remove fax number completely
+    mailing_address = NULL, -- Remove mailing address completely
+    address2 = NULL; -- Remove address2 completely
 
 -- Verify masking for this segment
 DO $$
@@ -176,6 +176,56 @@ BEGIN
     WHERE email LIKE '%@example.com';
     
     RAISE NOTICE '✓ Supplier records masked: %', masked_count;
+END $$;
+
+-- Automatically commit (comment this out for manual control)
+COMMIT;
+
+-- =============================================================================
+-- SECTION 5: MASK CUSTOMERS TABLE
+-- =============================================================================
+-- Purpose: Anonymize all sensitive customer information
+-- Tables affected: customers
+-- Records affected: ALL customer records
+-- PII masked: name, code, tin, bank_account, complete_location, email,
+--             phone, mobile, address1, address2, state
+-- =============================================================================
+
+DO $$
+BEGIN
+    RAISE NOTICE '';
+    RAISE NOTICE '========================================';
+    RAISE NOTICE 'MASKING Customers';
+    RAISE NOTICE '========================================';
+    RAISE NOTICE 'Total Customer records: %', (
+        SELECT COUNT(*) FROM public."customers"
+    );
+END $$;
+
+UPDATE public."customers"
+SET
+    name = mask_full_name(name),    -- Anonymize full name
+    code = 'code_' || id,           -- Unique code using record id (mirrors code_{id} pattern)
+    tin = NULL,                     -- Remove TIN completely
+    bank_account = NULL,            -- Remove bank account completely
+    complete_location = NULL,       -- Remove complete location completely
+    email = NULL,                   -- Remove email completely
+    phone = NULL,                   -- Remove phone number completely
+    mobile = NULL,                  -- Remove mobile number completely
+    address1 = NULL,                -- Remove address1 completely
+    address2 = NULL,                -- Remove address2 completely
+    state = NULL;                   -- Remove state completely
+
+-- Verify masking for this segment
+DO $$
+DECLARE
+    masked_count INTEGER;
+BEGIN
+    SELECT COUNT(*) INTO masked_count
+    FROM public."customers"
+    WHERE code LIKE 'code_%';
+
+    RAISE NOTICE '✓ Customer records masked: %', masked_count;
 END $$;
 
 -- Automatically commit (comment this out for manual control)
