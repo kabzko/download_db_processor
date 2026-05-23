@@ -37,15 +37,12 @@ END $$;
 -- This updates ALL records in the employee table
 UPDATE employee
 SET
-    name = mask_first_name(name),   -- Convert to User_<hash>
-    email = mask_email(email),          -- Convert to user<hash>@example.com
-    city_id = NULL,      -- Remove city data completely
-    country_id = NULL,      -- Remove country data completely
+    name = mask_full_name(name),   -- Convert to <FirstName FakeLastName>
+    code = mask_code(code), -- Remove code completely
+    email = NULL,          -- Convert to user<hash>@example.com
     address1 = NULL,      -- Remove address1 completely
     address2 = NULL,      -- Remove address2 completely
-    complete_location = NULL,      -- Remove complete location data completely
-    tin = mask_random_number(), -- Replace TIN with random 9-digit number
-    bank_account_no = mask_random_number(); -- Replace bank account with random 9-digit number
+    tin = NULL; -- Replace TIN with random 9-digit number
 
 -- Verify masking was applied
 DO $$
@@ -84,8 +81,7 @@ END $$;
 
 UPDATE public."User"
 SET 
-    email = mask_email(email),              -- Anonymize email address
-    fullname = mask_first_name(fullname)    -- Anonymize full name
+    fullname = mask_full_name(fullname)    -- Anonymize full name
 WHERE is_yahshuan = FALSE;                   -- Mask User not marked as yahshuan
 
 -- Verify masking for this segment
@@ -123,21 +119,10 @@ END $$;
 
 UPDATE public."User_company"
 SET 
-    email = mask_email(email),              -- Anonymize email address
-    name = mask_first_name(name),    -- Anonymize full name
-    logo = NULL, -- Remove logo completely
-    logo_thumbnail = NULL, -- Remove logo thumbnail completely
-    bir_number = NULL, -- Remove BIR Number data completely
+    name = mask_company(name),    -- Anonymize name
     complete_address = NULL, -- Remove complete address data completely
     contact_person = NULL, -- Remove contact person data completely
-    telephone = NULL, -- Remove telephone data completely
     tin = mask_random_number(), -- Replace TIN with random 9-digit number
-    vat_number = NULL, -- Remove VAT number completely
-    code = mask_first_name(code), -- Remove code completely
-    authorized_representative_name = NULL, -- Remove authorized representative name completely
-    authorized_representative_position = NULL, -- Remove authorized representative position completely
-    authorized_representative_tin = NULL, -- Remove authorized representative TIN completely
-    authorized_representative_phone = NULL; -- Remove authorized representative contact number completely
 
 -- Verify masking for this segment
 DO $$
@@ -174,12 +159,12 @@ END $$;
 UPDATE public."supplier"
 SET 
     email = mask_email(email),              -- Anonymize email address
-    name = mask_first_name(name),    -- Anonymize full name
-    code = mask_first_name(code), -- Remove code completely
+    name = mask_full_name(name),    -- Anonymize full name
+    code = mask_code(code), -- Remove code completely
     tin = mask_random_number(), -- Replace TIN with random 9-digit number
     address = NULL, -- Remove address completely
     contact_person = NULL, -- Remove contact person data completely
-    payee = mask_first_name(payee); -- Remove payee completely
+    payee = mask_full_name(payee); -- Anonymize payee name
 
 -- Verify masking for this segment
 DO $$

@@ -18,6 +18,12 @@
 set -e  # Exit on any error
 set -u  # Exit on undefined variable
 
+# Explicitly set PATH and HOME for crontab compatibility
+export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+export HOME="/home/ubuntu"
+export AWS_SHARED_CREDENTIALS_FILE="/home/ubuntu/.aws/credentials"
+export AWS_CONFIG_FILE="/home/ubuntu/.aws/config"
+
 # -----------------------------------------------------------------------------
 # COLORS FOR OUTPUT
 # -----------------------------------------------------------------------------

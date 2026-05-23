@@ -6,6 +6,9 @@
 set -e
 set -u
 
+# Explicitly set PATH for crontab compatibility
+export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+
 # Default values
 DB_HOST=${DB_HOST:-localhost}
 DB_PORT=${DB_PORT:-5432}

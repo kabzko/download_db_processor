@@ -5,7 +5,7 @@
 # =============================================================================
 # Purpose: Download latest database backup from AWS S3, decompress, and import
 #          to local PostgreSQL for sanitization processing
-# Usage: ./download_db.sh
+# Usage: ./download_db.sh <database_name>
 # Requirements: 
 #   - AWS CLI configured with appropriate credentials
 #   - PostgreSQL installed locally
@@ -14,6 +14,23 @@
 # Author: Database Team
 # Last Modified: 2025-02-08
 # =============================================================================
+
+# -----------------------------------------------------------------------------
+# CRONTAB-SAFE SETTINGS
+# -----------------------------------------------------------------------------
+# Exit immediately on error, treat unset variables as errors
+set -e
+set -u
+
+# Explicitly set PATH so cron can find aws, ansible-playbook, gunzip, etc.
+export PATH="/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+
+# Validate required argument
+if [ -z "${1:-}" ]; then
+    echo "ERROR: Missing required argument: database_name"
+    echo "Usage: $0 <database_name>"
+    exit 1
+fi
 
 # -----------------------------------------------------------------------------
 # CONFIGURATION VARIABLES
@@ -149,7 +166,7 @@ echo ""
 # 2. Use Ansible vault for password management
 # 3. Use SSH key authentication
 # 4. Run script as user with appropriate permissions
-echo "123" | sudo -S ansible-playbook ~/database/download_db_processor/import_db.yml --extra-vars "database_name=$LOCAL_DB_NAME db_password=123"
+echo "123" | sudo -S ansible-playbook /home/ubuntu/database/download_db_processor/import_db.yml --extra-vars "database_name=$LOCAL_DB_NAME db_password=123"
 
 # -----------------------------------------------------------------------------
 # STEP 6: PROCESS COMPLETE

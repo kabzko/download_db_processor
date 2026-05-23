@@ -43,7 +43,7 @@
 
     # Path to the masking functions SQL script
     # This script creates reusable functions like mask_email(), mask_phone()
-    create_functions_script: /home/ubuntu/database/download_db_processor/create_masking_function.sql
+    create_functions_script: /home/ubuntu/database/download_db_processor/create_masking_function_ybo.sql
 
     # Path to the PII masking script
     # This script applies masking functions to actual data
@@ -163,10 +163,14 @@
     # Functions created:
     #   - mask_email(text) - Anonymize email addresses
     #   - mask_phone(text) - Randomize phone numbers
-    #   - mask_first_name(text) - Hash first names
-    #   - mask_middle_name(text) - Hash middle names
-    #   - mask_last_name(text) - Hash last names
+    #   - mask_full_name(text) - Fake last name with real first name (ybo)
+    #   - mask_first_name(text) - Hash first names (yp, yto)
+    #   - mask_middle_name(text) - Hash middle names (yp, yto)
+    #   - mask_last_name(text) - Hash last names (yp, yto)
+    #   - mask_code(text) - Hash code values
+    #   - mask_company(text) - Hash company names
     #   - mask_credit_card(text) - Mask credit card numbers
+    #   - mask_random_number() - Generate random 9-digit number
     # Error handling: ON_ERROR_STOP=1 stops on first SQL error
     # -------------------------------------------------------------------------
     - name: Create masking functions
