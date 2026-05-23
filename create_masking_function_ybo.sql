@@ -61,30 +61,63 @@ END;
 $$ LANGUAGE plpgsql VOLATILE;
 
 -- -----------------------------------------------------------------------------
+-- Table: mask_last_names
+-- -----------------------------------------------------------------------------
+-- Purpose: Lookup table of fake last names used by mask_full_name()
+-- Option 3: Hardcoded name table - no extension required
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS mask_last_names (name TEXT);
+TRUNCATE mask_last_names;
+INSERT INTO mask_last_names (name) VALUES
+    ('Smith'),('Johnson'),('Williams'),('Brown'),('Jones'),
+    ('Garcia'),('Miller'),('Davis'),('Wilson'),('Taylor'),
+    ('Anderson'),('Thomas'),('Jackson'),('White'),('Harris'),
+    ('Martin'),('Thompson'),('Young'),('Allen'),('King'),
+    ('Wright'),('Scott'),('Torres'),('Nguyen'),('Hill'),
+    ('Flores'),('Green'),('Adams'),('Nelson'),('Baker'),
+    ('Rivera'),('Campbell'),('Mitchell'),('Carter'),('Roberts'),
+    ('Gomez'),('Phillips'),('Evans'),('Turner'),('Diaz'),
+    ('Parker'),('Cruz'),('Edwards'),('Collins'),('Reyes'),
+    ('Stewart'),('Morris'),('Morales'),('Murphy'),('Cook'),
+    ('Rogers'),('Gutierrez'),('Ortiz'),('Morgan'),('Cooper'),
+    ('Peterson'),('Bailey'),('Reed'),('Kelly'),('Howard'),
+    ('Ramos'),('Kim'),('Cox'),('Ward'),('Richardson'),
+    ('Watson'),('Brooks'),('Chavez'),('Wood'),('James'),
+    ('Bennett'),('Gray'),('Mendoza'),('Ruiz'),('Hughes'),
+    ('Price'),('Alvarez'),('Castillo'),('Sanders'),('Patel'),
+    ('Myers'),('Long'),('Ross'),('Foster'),('Jimenez'),
+    ('Powell'),('Jenkins'),('Perry'),('Russell'),('Sullivan'),
+    ('Bell'),('Coleman'),('Butler'),('Henderson'),('Barnes'),
+    ('Gonzales'),('Fisher'),('Vasquez'),('Simmons'),('Romero');
+
+-- -----------------------------------------------------------------------------
 -- Function: mask_full_name
 -- -----------------------------------------------------------------------------
 -- Purpose: Anonymizes full names with a realistic-looking fake name
 -- Input: fullname TEXT - Original full name (e.g. "John Smith")
--- Output: TEXT - Masked name in format: <FirstWord><FakeLastName>
+-- Output: TEXT - Masked name in format: <FirstWord> <RandomLastName>
 -- Example: "John Smith" -> "John Carter"
--- Properties: VOLATILE - Random last name generated on each call
--- Requires: pg_faker extension (CREATE EXTENSION pg_faker;)
--- Use Case: When masked names should look realistic without exposing real identity
+-- Properties: VOLATILE - Random last name picked on each call
+-- Note: Uses mask_last_names table (Option 3), no extension required
 -- -----------------------------------------------------------------------------
-CREATE EXTENSION IF NOT EXISTS pg_faker;
-
 CREATE OR REPLACE FUNCTION mask_full_name(fullname TEXT)
 RETURNS TEXT AS $$
+DECLARE
+    random_last_name TEXT;
 BEGIN
     -- Handle NULL values
     IF fullname IS NULL THEN
         RETURN NULL;
     END IF;
 
-    -- Extract the first word of the real full name using split_part()
-    -- Combine with a randomly generated fake last name from pg_faker
-    -- No separator used to produce a clean concatenated name
-    RETURN split_part(fullname, ' ', 1) || ' ' || faker.last_name();
+    -- Pick a random last name from the mask_last_names table
+    SELECT name INTO random_last_name
+    FROM mask_last_names
+    ORDER BY random()
+    LIMIT 1;
+
+    -- Extract the first word of the real full name and append the random last name
+    RETURN split_part(fullname, ' ', 1) || ' ' || random_last_name;
 END;
 $$ LANGUAGE plpgsql VOLATILE;
 
