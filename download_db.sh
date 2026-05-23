@@ -155,7 +155,7 @@ echo "Running Ansible playbook..."
 echo ""
 
 # Run Ansible playbook with sudo privileges
-# echo "031498": Echo the sudo password (SECURITY NOTE: See below)
+# echo "<password>": Echo the sudo password (SECURITY NOTE: See below)
 # sudo -S: Read password from stdin
 # ansible-playbook: Run the import playbook
 # --extra-vars: Pass database name as variable to playbook
