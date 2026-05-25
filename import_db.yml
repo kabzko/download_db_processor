@@ -43,7 +43,7 @@
 
     # Path to the masking functions SQL script
     # This script creates reusable functions like mask_email(), mask_phone()
-    create_functions_script: /home/ubuntu/database/download_db_processor/create_masking_function_ybo.sql
+    create_functions_script: /home/ubuntu/database/download_db_processor/create_masking_function_{{database_name}}.sql
 
     # Path to the PII masking script
     # This script applies masking functions to actual data
